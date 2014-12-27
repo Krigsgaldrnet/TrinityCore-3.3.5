@@ -45,12 +45,14 @@ bool ItemTemplate::HasSignature() const
 
 bool ItemTemplate::CanChangeEquipStateInCombat() const
 {
-    switch (InventoryType)
+    switch (GetInventoryType())
     {
         case INVTYPE_RELIC:
         case INVTYPE_SHIELD:
         case INVTYPE_HOLDABLE:
             return true;
+        default:
+            break;
     }
 
     switch (Class)
@@ -58,6 +60,8 @@ bool ItemTemplate::CanChangeEquipStateInCombat() const
         case ITEM_CLASS_WEAPON:
         case ITEM_CLASS_PROJECTILE:
             return true;
+        default:
+            break;
     }
 
     return false;
