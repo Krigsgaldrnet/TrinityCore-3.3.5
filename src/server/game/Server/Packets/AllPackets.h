@@ -51,6 +51,7 @@
 #include "SpellPackets.h"
 #include "SystemPackets.h"
 #include "TalentPackets.h"
+#include "TicketPackets.h"
 #include "TotemPackets.h"
 #include "TradePackets.h"
 #include "WorldStatePackets.h"
