@@ -41,102 +41,59 @@
 #include "World.h"
 #include "WorldPacket.h"
 
-void WorldSession::HandleClientCastFlags(WorldPacket& recvPacket, uint8 castFlags, SpellCastTargets& targets)
+void WorldSession::HandleUseItemOpcode(WorldPackets::Spells::UseItem& packet)
 {
-    // some spell cast packet including more data (for projectiles?)
-    if (castFlags & 0x02)
+    Player* user = _player;
+
+    Item* item = user->GetUseableItemByPos(packet.PackSlot, packet.Slot);
+    if (!item)
     {
-        // not sure about these two
-        float elevation, speed;
-        recvPacket >> elevation;
-        recvPacket >> speed;
-
-        targets.SetElevation(elevation);
-        targets.SetSpeed(speed);
-
-        uint8 hasMovementData;
-        recvPacket >> hasMovementData;
-        if (hasMovementData)
-        {
-            OpcodeClient opcode = static_cast<OpcodeClient>(recvPacket.read<uint32>());
-            MovementInfo movementInfo;
-            recvPacket >> movementInfo.guid.ReadAsPacked();
-            recvPacket >> movementInfo;
-            HandleMovementOpcode(opcode, movementInfo);
-        }
-    }
-}
-
-void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
-{
-    /// @todo add targets.read() check
-    Player* pUser = _player;
-
-    uint8 bagIndex, slot, castFlags;
-    uint8 castCount;                                        // next cast if exists (single or not)
-    ObjectGuid itemGUID;
-    uint32 glyphIndex;                                      // something to do with glyphs?
-    uint32 spellId;                                         // cast spell id
-
-    recvPacket >> bagIndex >> slot >> castCount >> spellId >> itemGUID >> glyphIndex >> castFlags;
-
-    if (glyphIndex >= MAX_GLYPH_SLOT_INDEX)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
+        user->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
         return;
     }
 
-    Item* pItem = pUser->GetUseableItemByPos(bagIndex, slot);
-    if (!pItem)
+    if (item->GetGUID() != packet.CastItem)
     {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
+        user->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
         return;
     }
 
-    if (pItem->GetGUID() != itemGUID)
-    {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, nullptr, nullptr);
-        return;
-    }
-
-    TC_LOG_DEBUG("network", "WORLD: CMSG_USE_ITEM packet, bagIndex: {}, slot: {}, castCount: {}, spellId: {}, Item: {}, glyphIndex: {}, data length = {}", bagIndex, slot, castCount, spellId, pItem->GetEntry(), glyphIndex, (uint32)recvPacket.size());
-
-    ItemTemplate const* proto = pItem->GetTemplate();
+    ItemTemplate const* proto = item->GetTemplate();
     if (!proto)
     {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, nullptr);
+        user->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, item, nullptr);
         return;
     }
 
     // some item classes can be used only in equipped state
-    if (proto->GetInventoryType() != INVTYPE_NON_EQUIP && !pItem->IsEquipped())
+    if (proto->GetInventoryType() != INVTYPE_NON_EQUIP && !item->IsEquipped())
     {
-        pUser->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, pItem, nullptr);
+        user->SendEquipError(EQUIP_ERR_ITEM_NOT_FOUND, item, nullptr);
         return;
     }
 
-    InventoryResult msg = pUser->CanUseItem(pItem);
+    InventoryResult msg = user->CanUseItem(item);
     if (msg != EQUIP_ERR_OK)
     {
-        pUser->SendEquipError(msg, pItem, nullptr);
+        user->SendEquipError(msg, item, nullptr);
         return;
     }
 
     // only allow conjured consumable, bandage, poisons (all should have the 2^21 item flag set in DB)
-    if (proto->GetClass() == ITEM_CLASS_CONSUMABLE && !proto->HasFlag(ITEM_FLAG_IGNORE_DEFAULT_ARENA_RESTRICTIONS) && pUser->InArena())
+    if (proto->GetClass() == ITEM_CLASS_CONSUMABLE && !proto->HasFlag(ITEM_FLAG_IGNORE_DEFAULT_ARENA_RESTRICTIONS) && user->InArena())
     {
-        pUser->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, pItem, nullptr);
+        user->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, nullptr);
         return;
     }
 
     // don't allow items banned in arena
-    if (proto->HasFlag(ITEM_FLAG_NOT_USEABLE_IN_ARENA) && pUser->InArena())
+    if (proto->HasFlag(ITEM_FLAG_NOT_USEABLE_IN_ARENA) && user->InArena())
     {
-        pUser->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, pItem, nullptr);
+        user->SendEquipError(EQUIP_ERR_NOT_DURING_ARENA_MATCH, item, nullptr);
         return;
     }
 
-    if (pUser->IsInCombat())
+    if (user->IsInCombat())
     {
         for (ItemEffect const& effectData : proto->Effects)
         {
@@ -144,7 +101,7 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
             {
                 if (!spellInfo->CanBeUsedInCombat())
                 {
-                    pUser->SendEquipError(EQUIP_ERR_NOT_IN_COMBAT, pItem, nullptr);
+                    user->SendEquipError(EQUIP_ERR_NOT_IN_COMBAT, item, nullptr);
                     return;
                 }
             }
@@ -152,24 +109,22 @@ void WorldSession::HandleUseItemOpcode(WorldPacket& recvPacket)
     }
 
     // check also  BIND_WHEN_PICKED_UP and BIND_QUEST_ITEM for .additem or .additemset case by GM (not binded at adding to inventory)
-    if (pItem->GetTemplate()->GetBonding() == BIND_WHEN_USE || pItem->GetTemplate()->GetBonding() == BIND_WHEN_PICKED_UP || pItem->GetTemplate()->GetBonding() == BIND_QUEST_ITEM)
+    if (item->GetTemplate()->GetBonding() == BIND_WHEN_USE || item->GetTemplate()->GetBonding() == BIND_WHEN_PICKED_UP || item->GetTemplate()->GetBonding() == BIND_QUEST_ITEM)
     {
-        if (!pItem->IsSoulBound())
+        if (!item->IsSoulBound())
         {
-            pItem->SetState(ITEM_CHANGED, pUser);
-            pItem->SetBinding(true);
+            item->SetState(ITEM_CHANGED, user);
+            item->SetBinding(true);
         }
     }
 
-    SpellCastTargets targets;
-    targets.Read(recvPacket, pUser);
-    HandleClientCastFlags(recvPacket, castFlags, targets);
+    SpellCastTargets targets(user, packet.Cast);
 
     // Note: If script stop casting it must send appropriate data to client to prevent stuck item in gray state.
-    if (!sScriptMgr->OnItemUse(pUser, pItem, targets))
+    if (!sScriptMgr->OnItemUse(user, item, targets))
     {
         // no script or script not process request by self
-        pUser->CastItemUseSpell(pItem, spellId, targets, castCount, glyphIndex);
+        user->CastItemUseSpell(item, packet.Cast.SpellID, targets, packet.Cast.CastID, packet.Misc);
     }
 }
 
@@ -318,36 +273,25 @@ void WorldSession::HandleGameobjectReportUse(WorldPackets::GameObject::GameObjRe
     }
 }
 
-void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
+void WorldSession::HandleCastSpellOpcode(WorldPackets::Spells::CastSpell& castRequest)
 {
-    uint32 spellId;
-    uint8  castCount, castFlags;
-    recvPacket >> castCount >> spellId >> castFlags;
-    TriggerCastFlags triggerFlag = TRIGGERED_NONE;
-
-    TC_LOG_DEBUG("network", "WORLD: got cast spell packet, castCount: {}, spellId: {}, castFlags: {}, data length = {}", castCount, spellId, castFlags, (uint32)recvPacket.size());
-
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
+    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(castRequest.Cast.SpellID);
     if (!spellInfo)
     {
-        TC_LOG_ERROR("network", "WORLD: unknown spell id {}", spellId);
-        recvPacket.rfinish(); // prevent spam at ignore packet
+        TC_LOG_ERROR("network", "WorldSession::HandleCastSpellOpcode: attempted to cast a non-existing spell (Id: {})", castRequest.Cast.SpellID);
         return;
     }
 
     if (spellInfo->IsPassive())
-    {
-        recvPacket.rfinish(); // prevent spam at ignore packet
         return;
-    }
+
+    TriggerCastFlags triggerFlag = TRIGGERED_NONE;
 
     // client provided targets
-    SpellCastTargets targets;
-    targets.Read(recvPacket, _player);
-    HandleClientCastFlags(recvPacket, castFlags, targets);
+    SpellCastTargets targets(_player, castRequest.Cast);
 
     // not have spell in spellbook
-    if (!_player->HasActiveSpell(spellId))
+    if (!_player->HasActiveSpell(spellInfo->Id))
     {
         bool allow = false;
 
@@ -357,7 +301,7 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
                 allow = true;
 
         // allow casting of spells triggered by clientside periodic trigger auras
-        if (_player->HasAuraTypeWithTriggerSpell(SPELL_AURA_PERIODIC_TRIGGER_SPELL_FROM_CLIENT, spellId))
+        if (_player->HasAuraTypeWithTriggerSpell(SPELL_AURA_PERIODIC_TRIGGER_SPELL_FROM_CLIENT, spellInfo->Id))
         {
             allow = true;
             triggerFlag = TRIGGERED_FULL_MASK;
@@ -371,16 +315,9 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
     // Skip it to prevent "interrupt" message
     // Also check targets! target may have changed and we need to interrupt current spell
     if (spellInfo->IsAutoRepeatRangedSpell())
-    {
         if (Spell* spell = _player->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
-        {
             if (spell->m_spellInfo == spellInfo && spell->m_targets.GetUnitTargetGUID() == targets.GetUnitTargetGUID())
-            {
-                recvPacket.rfinish();
                 return;
-            }
-        }
-    }
 
     // auto-selection buff level base at target level (in spellInfo)
     // TODO: is this even necessary? client already seems to send correct rank for "standard" buffs
@@ -394,9 +331,12 @@ void WorldSession::HandleCastSpellOpcode(WorldPacket& recvPacket)
                 spellInfo = actualSpellInfo;
         }
 
+    if (castRequest.Cast.MissileTrajectory && castRequest.Cast.MissileTrajectory->MoveUpdate)
+        HandleMovementOpcode(MSG_MOVE_STOP, *castRequest.Cast.MissileTrajectory->MoveUpdate);
+
     Spell* spell = new Spell(_player, spellInfo, triggerFlag);
     spell->m_fromClient = true;
-    spell->m_cast_count = castCount;                       // set count of casts
+    spell->m_cast_count = castRequest.Cast.CastID;
     spell->prepare(targets);
 }
 
@@ -423,7 +363,7 @@ void WorldSession::HandleCancelAuraOpcode(WorldPackets::Spells::CancelAura& canc
     if (spellInfo->IsChanneled())
     {
         if (Spell* curSpell = _player->GetCurrentSpell(CURRENT_CHANNELED_SPELL))
-            if (curSpell->m_spellInfo->Id == cancelAura.SpellID)
+            if (curSpell->GetSpellInfo()->Id == cancelAura.SpellID)
                 _player->InterruptSpell(CURRENT_CHANNELED_SPELL);
         return;
     }
@@ -434,7 +374,6 @@ void WorldSession::HandleCancelAuraOpcode(WorldPackets::Spells::CancelAura& canc
     if (!spellInfo->IsPositive() || spellInfo->IsPassive())
         return;
 
-    // maybe should only remove one buff when there are multiple?
     _player->RemoveOwnedAura(cancelAura.SpellID, ObjectGuid::Empty, 0, AURA_REMOVE_BY_CANCEL);
 
     // If spell being removed is a resource tracker, see if player was tracking both (herbs / minerals) and remove the other
