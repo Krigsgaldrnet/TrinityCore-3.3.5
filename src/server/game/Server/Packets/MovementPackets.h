@@ -32,6 +32,12 @@ namespace WorldPackets
 {
     namespace Movement
     {
+        struct MovementAck
+        {
+            MovementInfo Status;
+            int32 AckIndex = 0;
+        };
+
         class ClientPlayerMovement final : public ClientPacket
         {
         public:
@@ -158,6 +164,27 @@ namespace WorldPackets
             float Speed = 1.0f;
         };
 
+        class MoveSplineSetFlag final : public ServerPacket
+        {
+        public:
+            explicit MoveSplineSetFlag(OpcodeServer opcode) : ServerPacket(opcode, 9) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid MoverGUID;
+        };
+
+        class MoveSetFlag final : public ServerPacket
+        {
+        public:
+            explicit MoveSetFlag(OpcodeServer opcode) : ServerPacket(opcode, 9 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid MoverGUID;
+            uint32 SequenceIndex = 0; ///< Unit movement packet index, incremented each time
+        };
+
         struct ShipTransferPending
         {
             uint32 ID = 0;              ///< gameobject_template.entry of the transport the player is teleporting on
@@ -237,6 +264,27 @@ namespace WorldPackets
             ObjectGuid MoverGUID;
             int32 AckIndex = 0;
             int32 MoveTime = 0;
+        };
+
+        class MovementSpeedAck final : public ClientPacket
+        {
+        public:
+            explicit MovementSpeedAck(WorldPacket&& packet) : ClientPacket(std::move(packet)) { }
+
+            void Read() override;
+
+            MovementAck Ack;
+            float Speed = 0.0f;
+        };
+
+        class SetActiveMover final : public ClientPacket
+        {
+        public:
+            explicit SetActiveMover(WorldPacket&& packet) : ClientPacket(CMSG_SET_ACTIVE_MOVER, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid ActiveMover;
         };
     }
 }

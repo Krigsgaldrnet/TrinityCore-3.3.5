@@ -317,6 +317,8 @@ namespace WorldPackets
         class ClientPlayerMovement;
         class WorldPortResponse;
         class MoveTeleportAck;
+        class MovementSpeedAck;
+        class SetActiveMover;
     }
 
     namespace NPC
@@ -419,8 +421,14 @@ namespace WorldPackets
 
     namespace Ticket
     {
+        class GMTicketCreate;
+        class GMTicketUpdateText;
+        class GMTicketDelete;
         class GMTicketGetSystemStatus;
         class GMTicketGetTicket;
+        class GMSurveySubmit;
+        class GMLagReport;
+        class GMTicketResponseResolve;
     }
 
     namespace Trade
@@ -817,7 +825,7 @@ class TC_GAME_API WorldSession
         void HandleRequestHonorStats(WorldPackets::Inspect::RequestHonorStats& request);
         void HandleQueryInspectAchievements(WorldPackets::Inspect::QueryInspectAchievements& inspect);
 
-        void HandleForceSpeedChangeAck(WorldPacket& recvData);
+        void HandleForceSpeedChangeAck(WorldPackets::Movement::MovementSpeedAck& packet);
         void HandleMoveKnockBackAck(WorldPacket& recvPacket);
         void HandleMoveTeleportAck(WorldPackets::Movement::MoveTeleportAck& packet);
         void HandleMoveWaterWalkAck(WorldPacket& recvPacket);
@@ -852,14 +860,14 @@ class TC_GAME_API WorldSession
         void HandleLogoutCancelOpcode(WorldPackets::Character::LogoutCancel& logoutCancel);
 
         // GM Ticket opcodes
-        void HandleGMTicketCreateOpcode(WorldPacket& recvPacket);
-        void HandleGMTicketUpdateOpcode(WorldPacket& recvPacket);
-        void HandleGMTicketDeleteOpcode(WorldPacket& recvPacket);
+        void HandleGMTicketCreateOpcode(WorldPackets::Ticket::GMTicketCreate& gmTicketCreate);
+        void HandleGMTicketUpdateTextOpcode(WorldPackets::Ticket::GMTicketUpdateText& gmTicketUpdateText);
+        void HandleGMTicketDeleteOpcode(WorldPackets::Ticket::GMTicketDelete& gmTicketDelete);
         void HandleGMTicketGetTicketOpcode(WorldPackets::Ticket::GMTicketGetTicket& packet);
         void HandleGMTicketSystemStatusOpcode(WorldPackets::Ticket::GMTicketGetSystemStatus& packet);
-        void HandleGMSurveySubmit(WorldPacket& recvPacket);
-        void HandleReportLag(WorldPacket& recvPacket);
-        void HandleGMResponseResolve(WorldPacket& recvPacket);
+        void HandleGMSurveySubmit(WorldPackets::Ticket::GMSurveySubmit& gmSurveySubmit);
+        void HandleGMLagReport(WorldPackets::Ticket::GMLagReport& gmLagReport);
+        void HandleGMResponseResolve(WorldPackets::Ticket::GMTicketResponseResolve& gmTicketResponseResolve);
 
         void HandleTogglePvP(WorldPackets::Misc::TogglePvP& togglePvP);
 
@@ -907,7 +915,7 @@ class TC_GAME_API WorldSession
 
         void HandleMovementOpcodes(WorldPackets::Movement::ClientPlayerMovement& packet);
         void HandleMovementOpcode(OpcodeClient opcode, MovementInfo& movementInfo);
-        void HandleSetActiveMoverOpcode(WorldPacket& recvData);
+        void HandleSetActiveMoverOpcode(WorldPackets::Movement::SetActiveMover& packet);
         void HandleMoveNotActiveMover(WorldPacket& recvData);
         void HandleDismissControlledVehicle(WorldPacket& recvData);
         void HandleRequestVehicleExit(WorldPacket& recvData);

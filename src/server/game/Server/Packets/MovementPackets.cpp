@@ -344,6 +344,21 @@ WorldPacket const* MoveUpdateSpeed::Write()
     return &_worldPacket;
 }
 
+WorldPacket const* MoveSplineSetFlag::Write()
+{
+    _worldPacket << MoverGUID.WriteAsPacked();
+
+    return &_worldPacket;
+}
+
+WorldPacket const* MoveSetFlag::Write()
+{
+    _worldPacket << MoverGUID.WriteAsPacked();
+    _worldPacket << uint32(SequenceIndex);
+
+    return &_worldPacket;
+}
+
 WorldPacket const* TransferPending::Write()
 {
     _worldPacket << int32(MapID);
@@ -404,5 +419,25 @@ void MoveTeleportAck::Read()
     _worldPacket >> MoverGUID.ReadAsPacked();
     _worldPacket >> AckIndex;
     _worldPacket >> MoveTime;
+}
+
+ByteBuffer& operator>>(ByteBuffer& data, MovementAck& ack)
+{
+    data >> ack.Status.guid.ReadAsPacked();
+    data >> ack.AckIndex;
+    data >> ack.Status;
+
+    return data;
+}
+
+void MovementSpeedAck::Read()
+{
+    _worldPacket >> Ack;
+    _worldPacket >> Speed;
+}
+
+void SetActiveMover::Read()
+{
+    _worldPacket >> ActiveMover;
 }
 }
