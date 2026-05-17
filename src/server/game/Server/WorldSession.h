@@ -250,6 +250,7 @@ namespace WorldPackets
     {
         class ClientPlayerMovement;
         class WorldPortResponse;
+        class MoveTeleportAck;
     }
 
     namespace NPC
@@ -709,7 +710,7 @@ class TC_GAME_API WorldSession
 
         void HandleForceSpeedChangeAck(WorldPacket& recvData);
         void HandleMoveKnockBackAck(WorldPacket& recvPacket);
-        void HandleMoveTeleportAck(WorldPacket& recvPacket);
+        void HandleMoveTeleportAck(WorldPackets::Movement::MoveTeleportAck& packet);
         void HandleMoveWaterWalkAck(WorldPacket& recvPacket);
         void HandleFeatherFallAck(WorldPacket& recvData);
         void HandleMoveHoverAck(WorldPacket& recvData);
