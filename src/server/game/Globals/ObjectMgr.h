@@ -37,6 +37,7 @@
 #include "UniqueTrackablePtr.h"
 #include <iterator>
 #include <map>
+#include <span>
 #include <unordered_map>
 
 class Item;
@@ -902,8 +903,8 @@ struct DungeonEncounter
     uint32 lastEncounterDungeon;
 };
 
-typedef std::vector<std::unique_ptr<DungeonEncounter const>> DungeonEncounterList;
-typedef std::unordered_map<uint32, DungeonEncounterList> DungeonEncounterContainer;
+typedef std::vector<DungeonEncounter> DungeonEncounterList;
+typedef std::unordered_map<std::pair<uint32, Difficulty>, DungeonEncounterList> DungeonEncounterContainer;
 
 typedef std::map<std::pair<SummonSlot /*TotemSlot*/, Races /*RaceId*/>, uint32 /*DisplayId*/> PlayerTotemModelMap;
 
@@ -944,7 +945,7 @@ class TC_GAME_API ObjectMgr
 
         typedef std::map<uint32, uint32> AreaTriggerScriptContainer;
 
-        typedef std::unordered_map<uint32, std::unique_ptr<AccessRequirement>> AccessRequirementContainer;
+        typedef std::unordered_map<std::pair<uint32, Difficulty>, AccessRequirement> AccessRequirementContainer;
 
         typedef std::unordered_map<uint32, RepRewardRate > RepRewardRateContainer;
         typedef std::unordered_map<uint32, ReputationOnKillEntry> RepOnKillContainer;
@@ -1106,7 +1107,7 @@ class TC_GAME_API ObjectMgr
         VehicleTemplate const* GetVehicleTemplate(Vehicle* veh) const;
         VehicleAccessoryList const* GetVehicleAccessoryList(Vehicle* veh) const;
 
-        DungeonEncounterList const* GetDungeonEncounterList(uint32 mapId, Difficulty difficulty) const;
+        std::span<DungeonEncounter const> GetDungeonEncounterList(uint32 mapId, Difficulty difficulty) const;
 
         void LoadQuests();
         void LoadQuestStartersAndEnders();
@@ -1516,7 +1517,7 @@ class TC_GAME_API ObjectMgr
         GraveyardContainer GraveyardStore;
 
         static void AddLocaleString(std::string&& value, LocaleConstant localeConstant, std::vector<std::string>& data);
-        static std::string_view GetLocaleString(std::vector<std::string> const& data, size_t locale)
+        static std::string_view GetLocaleString(std::vector<std::string> const& data, LocaleConstant locale)
         {
             if (locale < data.size())
                 return data[locale];
@@ -1525,8 +1526,14 @@ class TC_GAME_API ObjectMgr
         }
         static void GetLocaleString(std::vector<std::string> const& data, LocaleConstant localeConstant, std::string& value)
         {
-            if (std::string_view str = GetLocaleString(data, static_cast<size_t>(localeConstant)); !str.empty())
+            if (std::string_view str = GetLocaleString(data, localeConstant); !str.empty())
                 value.assign(str);
+        }
+
+        static void GetLocaleString(std::vector<std::string> const& data, LocaleConstant localeConstant, std::string_view& value)
+        {
+            if (std::string_view str = GetLocaleString(data, localeConstant); !str.empty())
+                value = str;
         }
 
         CharacterConversionMap FactionChangeAchievements;
